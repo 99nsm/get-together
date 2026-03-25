@@ -68,7 +68,7 @@ function getRelationId(page: PageObjectResponse, key: string): string {
 function mapMember(page: PageObjectResponse): Member {
     return {
         id:       page.id,
-        name:     getText(page, "name"),
+        name:     getText(page, "이름"),   // Notion DB의 타이틀 필드명이 "이름"
         phone:    getText(page, "phone"),
         joinDate: getDate(page, "joinDate"),
         isActive: getCheckbox(page, "isActive"),
@@ -99,7 +99,7 @@ export async function getMemberByName(name: string): Promise<Member | null> {
     const res = await notion.dataSources.query({
         data_source_id: DB_IDS.members,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        filter: { property: "name", title: { equals: name } } as any,
+        filter: { property: "이름", title: { equals: name } } as any,
     });
     const page = res.results[0];
     if (!page || !("properties" in page)) return null;
@@ -116,9 +116,9 @@ export async function createMember(data: {
     passwordHash: string;
 }): Promise<Member> {
     const page = await notion.pages.create({
-        parent: { database_id: DB_IDS.members },
+        parent: { data_source_id: DB_IDS.members } as any,
         properties: {
-            name:         { title: [{ text: { content: data.name } }] },
+            "이름":        { title: [{ text: { content: data.name } }] },
             phone:        { rich_text: [{ text: { content: data.phone } }] },
             joinDate:     { date: { start: data.joinDate } },
             isActive:     { checkbox: data.isActive },
@@ -139,7 +139,7 @@ export async function updateMember(id: string, data: Partial<{
     passwordHash: string;
 }>): Promise<Member> {
     const properties: Record<string, unknown> = {};
-    if (data.name)         properties.name         = { title: [{ text: { content: data.name } }] };
+    if (data.name)         properties["이름"]       = { title: [{ text: { content: data.name } }] };
     if (data.phone)        properties.phone        = { rich_text: [{ text: { content: data.phone } }] };
     if (data.joinDate)     properties.joinDate     = { date: { start: data.joinDate } };
     if (data.isActive !== undefined) properties.isActive = { checkbox: data.isActive };
@@ -174,7 +174,6 @@ function mapTransaction(page: PageObjectResponse): Transaction {
         year:       getNumber(page, "year"),
         month:      getNumber(page, "month"),
         amount:     getNumber(page, "amount"),
-        paidAt:     getDate(page, "paidAt"),
     };
 }
 
@@ -188,7 +187,7 @@ export async function getTransactions(year?: number, month?: number): Promise<Tr
         data_source_id: DB_IDS.transactions,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         filter: filters.length > 0 ? { and: filters as any } : undefined,
-        sorts: [{ property: "paidAt", direction: "descending" }],
+        sorts: [{ property: "month", direction: "descending" }],
     });
     return res.results
         .filter((p): p is PageObjectResponse => "properties" in p)
@@ -202,10 +201,9 @@ export async function createTransaction(data: {
     year: number;
     month: number;
     amount: number;
-    paidAt: string;
 }): Promise<Transaction> {
     const page = await notion.pages.create({
-        parent: { database_id: DB_IDS.transactions },
+        parent: { data_source_id: DB_IDS.transactions } as any,
         properties: {
             title:      { title: [{ text: { content: `${data.memberName} ${data.year}-${String(data.month).padStart(2, "0")}` } }] },
             member:     { relation: [{ id: data.memberId }] },
@@ -213,20 +211,21 @@ export async function createTransaction(data: {
             year:       { number: data.year },
             month:      { number: data.month },
             amount:     { number: data.amount },
-            paidAt:     { date: { start: data.paidAt } },
         },
     });
     return mapTransaction(page as PageObjectResponse);
 }
 
-// 입금 내역 수정
+// 입금 내역 수정 (금액, 연도, 월 수정 가능)
 export async function updateTransaction(id: string, data: Partial<{
+    year: number;
+    month: number;
     amount: number;
-    paidAt: string;
 }>): Promise<Transaction> {
     const properties: Record<string, unknown> = {};
+    if (data.year   !== undefined) properties.year   = { number: data.year };
+    if (data.month  !== undefined) properties.month  = { number: data.month };
     if (data.amount !== undefined) properties.amount = { number: data.amount };
-    if (data.paidAt)               properties.paidAt = { date: { start: data.paidAt } };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const page = await notion.pages.update({ page_id: id, properties: properties as any });
@@ -276,7 +275,7 @@ export async function createExpense(data: {
     description: string;
 }): Promise<Expense> {
     const page = await notion.pages.create({
-        parent: { database_id: DB_IDS.expenses },
+        parent: { data_source_id: DB_IDS.expenses } as any,
         properties: {
             title:       { title: [{ text: { content: data.title } }] },
             amount:      { number: data.amount },
@@ -366,9 +365,10 @@ export async function createPost(data: {
     authorName: string;
     content: string;
     createdAt: string;
+    photos?: string[]; // 이미지 URL 목록 (선택)
 }): Promise<Post> {
     const page = await notion.pages.create({
-        parent: { database_id: DB_IDS.posts },
+        parent: { data_source_id: DB_IDS.posts } as any,
         properties: {
             title:      { title: [{ text: { content: data.title } }] },
             author:     { relation: [{ id: data.authorId }] },
@@ -376,6 +376,15 @@ export async function createPost(data: {
             content:    { rich_text: [{ text: { content: data.content } }] },
             createdAt:  { date: { start: data.createdAt } },
             isPinned:   { checkbox: false },
+            // 이미지가 있을 때만 photos 속성 추가 (external URL로 저장)
+            ...(data.photos && data.photos.length > 0 && {
+                photos: {
+                    files: data.photos.map((url) => ({
+                        name: url,
+                        external: { url },
+                    })),
+                },
+            }),
         },
     });
     return mapPost(page as PageObjectResponse);

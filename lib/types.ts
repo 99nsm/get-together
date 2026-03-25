@@ -24,7 +24,6 @@ export interface Transaction {
     year: number;         // 연도 (예: 2025)
     month: number;        // 월 (1~12)
     amount: number;       // 입금 금액 (원)
-    paidAt: string;       // 실제 입금 날짜 (YYYY-MM-DD)
 }
 
 // ─────────────────────────────────────────
