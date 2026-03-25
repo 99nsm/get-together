@@ -87,7 +87,7 @@ export default function AdminBoardPage() {
             {loading ? (
                 <p className="text-center py-16 text-muted-foreground">불러오는 중...</p>
             ) : (
-                <div className="rounded-md border">
+                <div className="rounded-md border overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>

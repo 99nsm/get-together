@@ -16,8 +16,8 @@ export default function AdminLayout({
             {/* 왼쪽: 관리자 사이드바 */}
             <AdminSidebar />
 
-            {/* 오른쪽: 페이지 내용 */}
-            <div className="flex-1 p-6 overflow-auto">
+            {/* 오른쪽: 페이지 내용 — min-w-0으로 flex 자식이 넘치지 않게 방지 */}
+            <div className="flex-1 min-w-0 p-4 md:p-6 overflow-auto">
                 {children}
             </div>
         </div>

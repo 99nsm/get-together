@@ -137,16 +137,18 @@ export default function AdminMembersPage() {
     return (
         <div className="space-y-6">
             {/* 페이지 제목 + 회원 추가 버튼 */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between gap-2">
                 <div>
-                    <h1 className="text-2xl font-bold">회원 관리</h1>
+                    {/* 모바일에서 텍스트 크기 줄임 */}
+                    <h1 className="text-xl md:text-2xl font-bold">회원 관리</h1>
                     <p className="mt-1 text-sm text-muted-foreground">
                         총 {members.length}명 (활성: {members.filter((m) => m.isActive).length}명)
                     </p>
                 </div>
-                <Button onClick={openAdd}>
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    회원 추가
+                <Button onClick={openAdd} size="sm" className="shrink-0">
+                    <UserPlus className="mr-1 md:mr-2 h-4 w-4" />
+                    <span className="hidden md:inline">회원 추가</span>
+                    <span className="md:hidden">추가</span>
                 </Button>
             </div>
 
@@ -154,7 +156,8 @@ export default function AdminMembersPage() {
             {loading ? (
                 <p className="text-center py-16 text-muted-foreground">불러오는 중...</p>
             ) : (
-                <div className="rounded-md border">
+                /* overflow-x-auto: 테이블이 좁은 화면에서 가로 스크롤 가능 */
+                <div className="rounded-md border overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>

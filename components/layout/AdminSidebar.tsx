@@ -36,15 +36,17 @@ export default function AdminSidebar() {
     const pathname = usePathname();
 
     return (
-        <aside className="w-56 shrink-0 border-r bg-background min-h-[calc(100vh-3.5rem)]">
-            {/* 관리자 패널 제목 */}
-            <div className="flex items-center gap-2 px-4 py-4 border-b">
-                <LayoutDashboard className="h-5 w-5 text-muted-foreground" />
-                <span className="font-semibold text-sm">관리자 패널</span>
+        // 모바일: 아이콘만 보이는 좁은 사이드바 (w-12)
+        // 데스크톱(md 이상): 텍스트까지 보이는 넓은 사이드바 (w-56)
+        <aside className="w-12 md:w-56 shrink-0 border-r bg-background min-h-[calc(100vh-3.5rem)]">
+            {/* 관리자 패널 제목: 모바일에서는 아이콘만 표시 */}
+            <div className="flex items-center justify-center md:justify-start gap-2 px-2 md:px-4 py-4 border-b">
+                <LayoutDashboard className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <span className="hidden md:inline font-semibold text-sm">관리자 패널</span>
             </div>
 
             {/* 메뉴 목록 */}
-            <nav className="p-2 space-y-1">
+            <nav className="p-1 md:p-2 space-y-1">
                 {adminNavItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = pathname === item.href;
@@ -53,27 +55,33 @@ export default function AdminSidebar() {
                         <Link
                             key={item.href}
                             href={item.href}
+                            // 모바일: 아이콘만 중앙 정렬, 데스크톱: 아이콘+텍스트 좌측 정렬
                             className={cn(
-                                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                                "flex items-center justify-center md:justify-start gap-3 rounded-md px-2 md:px-3 py-2 text-sm font-medium transition-colors",
                                 isActive
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                             )}
+                            // 모바일에서 메뉴 이름을 툴팁으로 표시
+                            title={item.label}
                         >
                             <Icon className="h-4 w-4 shrink-0" />
-                            {item.label}
+                            <span className="hidden md:inline">{item.label}</span>
                         </Link>
                     );
                 })}
             </nav>
 
             {/* 일반 사이트로 돌아가기 */}
-            <div className="p-2 mt-2 border-t">
+            <div className="p-1 md:p-2 mt-2 border-t">
                 <Link
                     href="/"
-                    className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    className="flex items-center justify-center md:justify-start gap-3 rounded-md px-2 md:px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    title="사이트로 돌아가기"
                 >
-                    ← 사이트로 돌아가기
+                    {/* 모바일: ← 화살표만, 데스크톱: 텍스트 전체 표시 */}
+                    <span className="md:hidden">←</span>
+                    <span className="hidden md:inline">← 사이트로 돌아가기</span>
                 </Link>
             </div>
         </aside>
