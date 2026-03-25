@@ -1,18 +1,21 @@
 // app/board/[id]/page.tsx
 // 게시글 상세 페이지 (/board/[id])
-// 게시글 제목, 작성자, 날짜, 본문, 첨부사진을 보여줍니다.
-// Phase 1: 수정/삭제 버튼은 UI만 표시 (기능은 Phase 5에서 구현)
+// 서버 컴포넌트: Notion DB에서 게시글을 가져와 표시합니다.
+// 본인 글이거나 관리자일 때만 수정/삭제 버튼을 표시합니다.
+// dynamic = 'force-dynamic': 세션 정보를 포함하므로 요청 시마다 렌더링합니다.
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Pencil, Trash2, Pin } from "lucide-react";
+import { ArrowLeft, Pin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { mockPosts } from "@/lib/mock-data";
+import { getPost } from "@/lib/notion-api";
+import { auth } from "@/auth";
 import { formatDate } from "@/lib/utils";
+import PostActions from "./_components/PostActions";
 
-// Next.js 16(App Router)에서 params는 비동기 Promise입니다
 export default async function BoardDetailPage({
     params,
 }: {
@@ -20,13 +23,17 @@ export default async function BoardDetailPage({
 }) {
     const { id } = await params;
 
-    // Mock 데이터에서 해당 ID의 게시글 조회
-    const post = mockPosts.find((p) => p.id === id);
+    // Notion DB에서 게시글 조회
+    const post = await getPost(id);
+    if (!post) notFound();
 
-    // 게시글이 없으면 404 페이지로 이동
-    if (!post) {
-        notFound();
-    }
+    // 현재 로그인 세션 확인 (수정/삭제 버튼 표시 여부 판단)
+    const session = await auth();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const isAdmin = (session?.user as any)?.isAdmin === true;
+    const isAuthor = post.authorId === session?.user?.id;
+    // 본인 글이거나 관리자인 경우에만 수정/삭제 가능
+    const canModify = isAdmin || isAuthor;
 
     return (
         <div className="max-w-2xl mx-auto space-y-6">
@@ -50,7 +57,7 @@ export default async function BoardDetailPage({
                     <h1 className="text-2xl font-bold leading-tight">{post.title}</h1>
                 </div>
 
-                {/* 작성자 · 날짜 */}
+                {/* 작성자 · 날짜 · 수정/삭제 버튼 */}
                 <div className="flex items-center justify-between">
                     <div className="text-sm text-muted-foreground">
                         <span className="font-medium text-foreground">{post.authorName}</span>
@@ -58,24 +65,8 @@ export default async function BoardDetailPage({
                         <span>{formatDate(post.createdAt)}</span>
                     </div>
 
-                    {/* 수정 / 삭제 버튼 (Phase 1: 하드코딩으로 표시, Phase 5에서 본인 글에만 조건부 표시) */}
-                    <div className="flex gap-1">
-                        {/* 수정: 수정 페이지로 이동 */}
-                        <Button variant="ghost" size="sm" className="text-muted-foreground" asChild>
-                            <Link href={`/board/${id}/edit`}>
-                                <Pencil className="h-4 w-4 mr-1" />
-                                수정
-                            </Link>
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                        >
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            삭제
-                        </Button>
-                    </div>
+                    {/* 본인 글 또는 관리자만 수정/삭제 버튼 표시 */}
+                    {canModify && <PostActions postId={id} />}
                 </div>
             </div>
 
@@ -89,7 +80,7 @@ export default async function BoardDetailPage({
                 </p>
             </div>
 
-            {/* ── 사진 첨부 갤러리 (Phase 1: 사진 없으면 영역 미표시) ── */}
+            {/* ── 사진 첨부 갤러리 ── */}
             {post.photos.length > 0 && (
                 <div className="space-y-2">
                     <Separator />

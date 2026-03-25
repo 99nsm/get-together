@@ -1,21 +1,28 @@
 // app/board/page.tsx
 // 게시판 목록 페이지 (/board)
-// 공지 고정 게시글을 상단에 표시하고, 나머지 게시글을 최신순으로 카드 형태로 보여줍니다.
+// 서버 컴포넌트: Notion DB에서 게시글을 가져와 표시합니다.
+// ?cursor=xxx URL 파라미터로 다음 페이지 조회 (Notion 커서 기반 페이지네이션)
+// dynamic = 'force-dynamic': 요청 시마다 최신 게시글을 가져옵니다.
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { Pin, PenLine, ImageIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { mockPosts } from "@/lib/mock-data";
+import { getPosts } from "@/lib/notion-api";
 import { formatDate } from "@/lib/utils";
 
-export default function BoardPage() {
-    // 공지(isPinned) 먼저, 그 다음 최신순 정렬
-    const sortedPosts = [...mockPosts].sort((a, b) => {
-        if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+export default async function BoardPage({
+    searchParams,
+}: {
+    // Next.js App Router에서 searchParams는 비동기 Promise입니다
+    searchParams: Promise<{ cursor?: string }>;
+}) {
+    const { cursor } = await searchParams;
+
+    // Notion에서 게시글 목록과 다음 페이지 커서를 가져옴
+    const { posts, nextCursor } = await getPosts(cursor);
 
     return (
         <div className="space-y-6">
@@ -31,13 +38,13 @@ export default function BoardPage() {
             </div>
 
             {/* ── 게시글 목록 ── */}
-            {sortedPosts.length === 0 ? (
+            {posts.length === 0 ? (
                 <div className="text-center py-16 text-muted-foreground">
                     <p className="font-medium">작성된 게시글이 없습니다</p>
                 </div>
             ) : (
                 <div className="flex flex-col gap-3">
-                    {sortedPosts.map((post) => (
+                    {posts.map((post) => (
                         <Link key={post.id} href={`/board/${post.id}`}>
                             <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
                                 <CardContent className="py-4 px-5">
@@ -57,12 +64,11 @@ export default function BoardPage() {
                                             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                                                 {post.content}
                                             </p>
-                                            {/* 작성자 · 날짜 */}
+                                            {/* 작성자 · 날짜 · 사진 수 */}
                                             <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
                                                 <span>{post.authorName}</span>
                                                 <span>·</span>
                                                 <span>{formatDate(post.createdAt)}</span>
-                                                {/* 사진 첨부 표시 */}
                                                 {post.photos.length > 0 && (
                                                     <>
                                                         <span>·</span>
@@ -82,15 +88,25 @@ export default function BoardPage() {
                 </div>
             )}
 
-            {/* ── 페이지네이션 UI (Phase 1: 정적 표시) ── */}
+            {/* ── 페이지네이션: Notion 커서 기반 ── */}
             <div className="flex justify-center items-center gap-2 pt-2">
-                <Button variant="outline" size="sm" disabled>
-                    이전
-                </Button>
-                <span className="text-sm px-2">1 / 1</span>
-                <Button variant="outline" size="sm" disabled>
-                    다음
-                </Button>
+                {/* 이전 페이지: 커서가 있으면 처음으로 돌아가는 버튼 표시 */}
+                {cursor ? (
+                    <Button variant="outline" size="sm" asChild>
+                        <Link href="/board">처음으로</Link>
+                    </Button>
+                ) : (
+                    <Button variant="outline" size="sm" disabled>이전</Button>
+                )}
+
+                {/* 다음 페이지: Notion이 nextCursor를 줬을 때만 활성화 */}
+                {nextCursor ? (
+                    <Button variant="outline" size="sm" asChild>
+                        <Link href={`/board?cursor=${nextCursor}`}>다음</Link>
+                    </Button>
+                ) : (
+                    <Button variant="outline" size="sm" disabled>다음</Button>
+                )}
             </div>
         </div>
     );

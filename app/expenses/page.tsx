@@ -1,12 +1,11 @@
 // app/expenses/page.tsx
 // 비용 사용 내역 페이지 (/expenses)
-// 지출 목록을 카테고리별로 필터링하고, 항목 클릭 시 상세 정보를 모달로 보여줍니다.
-// Phase 1: "use client"로 필터·모달 상태 관리, Mock 데이터 사용
+// API로 지출 데이터를 가져와 카테고리별로 필터링하고, 항목 클릭 시 상세 모달을 보여줍니다.
 
 "use client";
 
-import { useState } from "react";
-import { Receipt, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Receipt } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,7 +16,6 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { mockExpenses } from "@/lib/mock-data";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Expense, ExpenseCategory } from "@/lib/types";
 
@@ -38,18 +36,35 @@ export default function ExpensesPage() {
     const [activeTab, setActiveTab] = useState<TabValue>("전체");
     // 상세 모달에 표시할 지출 항목 (null이면 모달 닫힘)
     const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+    // API에서 불러온 전체 지출 목록
+    const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    // 카테고리 필터 적용
+    // 마운트 시 전체 지출 목록 조회
+    useEffect(() => {
+        fetch("/api/expenses")
+            .then((r) => r.json())
+            .then((data: Expense[]) => {
+                setExpenses(data);
+                setLoading(false);
+            })
+            .catch(() => {
+                setExpenses([]);
+                setLoading(false);
+            });
+    }, []);
+
+    // 카테고리 필터 적용 (클라이언트 사이드)
     const filteredExpenses =
         activeTab === "전체"
-            ? mockExpenses
-            : mockExpenses.filter((e) => e.category === activeTab);
+            ? expenses
+            : expenses.filter((e) => e.category === activeTab);
 
     // 필터된 항목들의 합계
     const filteredTotal = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 
     // 전체 합계
-    const grandTotal = mockExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const grandTotal = expenses.reduce((sum, e) => sum + e.amount, 0);
 
     return (
         <div className="space-y-6">
@@ -87,7 +102,9 @@ export default function ExpensesPage() {
             </div>
 
             {/* ── 지출 목록 카드 ── */}
-            {filteredExpenses.length === 0 ? (
+            {loading ? (
+                <div className="text-center py-16 text-muted-foreground">불러오는 중...</div>
+            ) : filteredExpenses.length === 0 ? (
                 <div className="text-center py-16 text-muted-foreground">
                     <p>해당 카테고리의 지출 내역이 없습니다</p>
                 </div>
@@ -102,9 +119,7 @@ export default function ExpensesPage() {
                             <CardContent className="py-4">
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
-                                        {/* 항목명 */}
                                         <p className="font-semibold truncate">{expense.title}</p>
-                                        {/* 날짜 + 카테고리 뱃지 */}
                                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                                             <span className="text-xs text-muted-foreground">
                                                 {formatDate(expense.usedAt)}
@@ -117,7 +132,6 @@ export default function ExpensesPage() {
                                             </Badge>
                                         </div>
                                     </div>
-                                    {/* 금액 */}
                                     <p className="font-bold text-lg shrink-0">
                                         {formatCurrency(expense.amount)}
                                     </p>
@@ -140,7 +154,6 @@ export default function ExpensesPage() {
                         </DialogHeader>
 
                         <div className="space-y-3 text-sm">
-                            {/* 카테고리 뱃지 */}
                             <Badge
                                 variant="outline"
                                 className={CATEGORY_COLORS[selectedExpense.category]}
@@ -150,7 +163,6 @@ export default function ExpensesPage() {
 
                             <Separator />
 
-                            {/* 상세 정보 목록 */}
                             <div className="space-y-2">
                                 <Row label="금액" value={formatCurrency(selectedExpense.amount)} bold />
                                 <Row label="날짜" value={formatDate(selectedExpense.usedAt)} />
@@ -159,7 +171,7 @@ export default function ExpensesPage() {
                                 )}
                             </div>
 
-                            {/* 첨부 사진 (Phase 5에서 실제 이미지로 대체) */}
+                            {/* 첨부 사진 */}
                             {selectedExpense.photos.length > 0 && (
                                 <>
                                     <Separator />
@@ -188,15 +200,7 @@ export default function ExpensesPage() {
 }
 
 // 상세 정보 한 줄을 표시하는 작은 컴포넌트
-function Row({
-    label,
-    value,
-    bold,
-}: {
-    label: string;
-    value: string;
-    bold?: boolean;
-}) {
+function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
     return (
         <div className="flex justify-between gap-4">
             <span className="text-muted-foreground shrink-0">{label}</span>

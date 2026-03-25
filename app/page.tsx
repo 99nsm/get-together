@@ -1,37 +1,40 @@
 // app/page.tsx
 // 메인 페이지 (/) - 계모임 현황 대시보드
-// 총 모인 금액, 이달 납입률, 회원별 납입 현황 카드를 보여줍니다.
+// 서버 컴포넌트: Notion DB에서 실제 회원·입금 데이터를 가져와 표시합니다.
+// dynamic = 'force-dynamic': 빌드 시 정적 렌더링을 하지 않고 요청 시마다 최신 데이터를 가져옵니다.
+export const dynamic = "force-dynamic";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Users, TrendingUp, Wallet } from "lucide-react";
-import {
-    mockMembers,
-    mockTransactions,
-    getUnpaidMembersThisMonth,
-    getTotalAmount,
-} from "@/lib/mock-data";
+import { getMembers, getTransactions } from "@/lib/notion-api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
-// 현재 기준 연도/월 (Phase 5에서 실제 날짜로 대체)
-const CURRENT_YEAR = 2026;
-const CURRENT_MONTH = 3;
+export default async function HomePage() {
+    // 현재 날짜 기준 연도/월 계산
+    const now = new Date();
+    const CURRENT_YEAR = now.getFullYear();
+    const CURRENT_MONTH = now.getMonth() + 1; // getMonth()는 0부터 시작
 
-export default function HomePage() {
+    // Notion DB에서 회원 목록과 올해 입금 내역을 동시에 가져옴
+    const [members, transactions] = await Promise.all([
+        getMembers(),
+        getTransactions(CURRENT_YEAR),
+    ]);
+
     // 활성 회원만 필터링 (탈퇴 회원 제외)
-    const activeMembers = mockMembers.filter((m) => m.isActive);
+    const activeMembers = members.filter((m) => m.isActive);
 
-    // 이번 달 미납 회원 목록
-    const unpaidMembers = getUnpaidMembersThisMonth(
-        mockMembers,
-        mockTransactions,
-        CURRENT_YEAR,
-        CURRENT_MONTH
+    // 이번 달 입금한 회원 ID 목록 (Set으로 빠른 조회)
+    const paidMemberIds = new Set(
+        transactions
+            .filter((tx) => tx.month === CURRENT_MONTH)
+            .map((tx) => tx.memberId)
     );
 
-    // 납입 완료 인원 = 활성 회원 수 - 미납 회원 수
-    const paidCount = activeMembers.length - unpaidMembers.length;
+    const unpaidCount = activeMembers.filter((m) => !paidMemberIds.has(m.id)).length;
+    const paidCount = activeMembers.length - unpaidCount;
 
     // 납입률 (0~100 정수)
     const paymentRate =
@@ -39,15 +42,15 @@ export default function HomePage() {
             ? Math.round((paidCount / activeMembers.length) * 100)
             : 0;
 
-    // 전체 누적 입금액
-    const totalAmount = getTotalAmount(mockTransactions);
+    // 전체 누적 입금액 합산
+    const totalAmount = transactions.reduce((sum, tx) => sum + tx.amount, 0);
 
     // 회원별 총 납입액 + 이달 납입 여부 계산
     const memberStats = activeMembers.map((member) => {
-        const memberTotal = mockTransactions
+        const memberTotal = transactions
             .filter((tx) => tx.memberId === member.id)
             .reduce((sum, tx) => sum + tx.amount, 0);
-        const isPaidThisMonth = !unpaidMembers.find((u) => u.id === member.id);
+        const isPaidThisMonth = paidMemberIds.has(member.id);
         return { ...member, memberTotal, isPaidThisMonth };
     });
 
@@ -87,7 +90,6 @@ export default function HomePage() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-3xl font-bold">{paymentRate}%</p>
-                        {/* 납입률 진행 바 */}
                         <Progress value={paymentRate} className="mt-2" />
                         <p className="text-xs text-muted-foreground mt-1">
                             {paidCount}명 / {activeMembers.length}명 납입 완료
@@ -104,11 +106,9 @@ export default function HomePage() {
                     <Badge variant="secondary">{activeMembers.length}명</Badge>
                 </div>
 
-                {/* 빈 상태: 회원이 아무도 없을 때 */}
                 {activeMembers.length === 0 ? (
                     <EmptyState />
                 ) : (
-                    /* 카드 그리드: 모바일 1열 / sm 2열 / lg 3열 */
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {memberStats.map((member) => (
                             <MemberCard
@@ -144,16 +144,8 @@ function MemberCard({
     isPaidThisMonth: boolean;
 }) {
     return (
-        // 미납 회원은 빨간 테두리로 강조
-        <Card
-            className={
-                isPaidThisMonth
-                    ? ""
-                    : "border-destructive/50 bg-destructive/5"
-            }
-        >
+        <Card className={isPaidThisMonth ? "" : "border-destructive/50 bg-destructive/5"}>
             <CardContent className="pt-4">
-                {/* 이름 + 관리자 뱃지 + 납입 상태 뱃지 */}
                 <div className="flex items-start justify-between">
                     <div>
                         <div className="flex items-center gap-1.5">
@@ -168,23 +160,14 @@ function MemberCard({
                             가입일: {formatDate(joinDate)}
                         </p>
                     </div>
-
-                    {/* 납입완료 / 미납 뱃지 */}
                     {isPaidThisMonth ? (
-                        <Badge
-                            variant="outline"
-                            className="text-green-600 border-green-600 shrink-0"
-                        >
+                        <Badge variant="outline" className="text-green-600 border-green-600 shrink-0">
                             납입완료
                         </Badge>
                     ) : (
-                        <Badge variant="destructive" className="shrink-0">
-                            미납
-                        </Badge>
+                        <Badge variant="destructive" className="shrink-0">미납</Badge>
                     )}
                 </div>
-
-                {/* 총 납입액 */}
                 <div className="mt-3 pt-3 border-t">
                     <p className="text-xs text-muted-foreground">총 납입액</p>
                     <p className="font-bold text-lg">{formatCurrency(memberTotal)}</p>

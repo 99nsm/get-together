@@ -1,12 +1,11 @@
 // app/transactions/page.tsx
 // 계좌이체 내역 페이지 (/transactions)
-// 회원 × 월 형태의 테이블로 납입 현황을 보여줍니다.
-// 연도 필터로 조회 연도를 선택할 수 있습니다.
-// Phase 1: "use client"로 연도 필터 상태 관리, Mock 데이터 사용
+// API로 회원·입금 데이터를 가져와 회원 × 월 테이블로 납입 현황을 보여줍니다.
+// 연도 필터, 엑셀 내보내기 기능을 제공합니다.
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,52 +24,70 @@ import {
     TableRow,
     TableFooter,
 } from "@/components/ui/table";
-import { mockMembers, mockTransactions } from "@/lib/mock-data";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import type { Member, Transaction } from "@/lib/types";
 
-// Mock 데이터에 존재하는 연도 목록 추출
-const availableYears = [...new Set(mockTransactions.map((tx) => tx.year))].sort(
-    (a, b) => b - a
-);
+// 현재 연도 기준으로 선택 가능한 연도 목록 (전년 ~ 다음 연도)
+const currentYear = new Date().getFullYear();
+const availableYears = [currentYear - 1, currentYear, currentYear + 1];
 
 export default function TransactionsPage() {
-    // 현재 선택된 연도 (기본값: 가장 최근 연도)
-    const [selectedYear, setSelectedYear] = useState(availableYears[0] ?? 2026);
+    // 선택된 연도 (기본값: 현재 연도)
+    const [selectedYear, setSelectedYear] = useState(currentYear);
 
-    // 선택된 연도의 활성 회원 목록
-    const activeMembers = mockMembers.filter((m) => m.isActive);
+    // API에서 불러온 데이터
+    const [members, setMembers] = useState<Member[]>([]);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    // 선택된 연도에 존재하는 월 목록 (오름차순)
-    const months = [
-        ...new Set(
-            mockTransactions
-                .filter((tx) => tx.year === selectedYear)
-                .map((tx) => tx.month)
-        ),
-    ].sort((a, b) => a - b);
+    // 회원 목록은 한 번만 조회
+    useEffect(() => {
+        fetch("/api/members")
+            .then((r) => r.json())
+            .then((data: Member[]) => setMembers(data))
+            .catch(() => setMembers([]));
+    }, []);
 
-    // 특정 회원·연도·월의 입금 내역 조회 헬퍼
+    // 연도가 바뀔 때마다 해당 연도의 입금 내역 재조회
+    useEffect(() => {
+        setLoading(true);
+        fetch(`/api/transactions?year=${selectedYear}`)
+            .then((r) => r.json())
+            .then((data: Transaction[]) => {
+                setTransactions(data);
+                setLoading(false);
+            })
+            .catch(() => {
+                setTransactions([]);
+                setLoading(false);
+            });
+    }, [selectedYear]);
+
+    // 활성 회원만 표시
+    const activeMembers = members.filter((m) => m.isActive);
+
+    // 이 연도에 입금 기록이 있는 월 목록 (오름차순)
+    const months = [...new Set(transactions.map((tx) => tx.month))].sort((a, b) => a - b);
+
+    // 특정 회원·월의 입금 내역 조회 헬퍼
     function getTransaction(memberId: string, month: number) {
-        return mockTransactions.find(
-            (tx) =>
-                tx.memberId === memberId &&
-                tx.year === selectedYear &&
-                tx.month === month
+        return transactions.find(
+            (tx) => tx.memberId === memberId && tx.month === month
         );
     }
 
     // 회원별 연간 합계
     function getMemberTotal(memberId: string) {
-        return mockTransactions
-            .filter((tx) => tx.memberId === memberId && tx.year === selectedYear)
+        return transactions
+            .filter((tx) => tx.memberId === memberId)
             .reduce((sum, tx) => sum + tx.amount, 0);
     }
 
     // 월별 합계 (열 합계)
     function getMonthTotal(month: number) {
-        return mockTransactions
-            .filter((tx) => tx.year === selectedYear && tx.month === month)
+        return transactions
+            .filter((tx) => tx.month === month)
             .reduce((sum, tx) => sum + tx.amount, 0);
     }
 
@@ -101,16 +118,20 @@ export default function TransactionsPage() {
                         </SelectContent>
                     </Select>
 
-                    {/* 엑셀 내보내기 버튼 (Phase 4에서 기능 구현) */}
-                    <Button variant="outline" size="sm">
-                        <Download className="h-4 w-4 mr-1" />
-                        엑셀 내보내기
+                    {/* 엑셀 내보내기: /api/transactions/export?year=X 파일 다운로드 */}
+                    <Button variant="outline" size="sm" asChild>
+                        <a href={`/api/transactions/export?year=${selectedYear}`} download>
+                            <Download className="h-4 w-4 mr-1" />
+                            엑셀 내보내기
+                        </a>
                     </Button>
                 </div>
             </div>
 
             {/* ── 납입 현황 테이블 ── */}
-            {months.length === 0 ? (
+            {loading ? (
+                <p className="text-center py-16 text-muted-foreground">불러오는 중...</p>
+            ) : months.length === 0 ? (
                 <p className="text-center py-16 text-muted-foreground">
                     {selectedYear}년 입금 내역이 없습니다.
                 </p>
@@ -120,17 +141,14 @@ export default function TransactionsPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                {/* 행 헤더: 회원 이름 */}
                                 <TableHead className="sticky left-0 bg-background min-w-24">
                                     회원
                                 </TableHead>
-                                {/* 열 헤더: 월 */}
                                 {months.map((month) => (
                                     <TableHead key={month} className="text-center min-w-24">
                                         {month}월
                                     </TableHead>
                                 ))}
-                                {/* 행 합계 */}
                                 <TableHead className="text-right min-w-28 font-bold">
                                     합계
                                 </TableHead>
@@ -140,12 +158,9 @@ export default function TransactionsPage() {
                         <TableBody>
                             {activeMembers.map((member) => (
                                 <TableRow key={member.id}>
-                                    {/* 회원 이름 (고정 열) */}
                                     <TableCell className="sticky left-0 bg-background font-medium">
                                         {member.name}
                                     </TableCell>
-
-                                    {/* 각 월 납입 여부 */}
                                     {months.map((month) => {
                                         const tx = getTransaction(member.id, month);
                                         return (
@@ -153,7 +168,6 @@ export default function TransactionsPage() {
                                                 key={month}
                                                 className={cn(
                                                     "text-center",
-                                                    // 미납: 빨간 배경 강조
                                                     !tx && "bg-destructive/10 text-destructive font-medium"
                                                 )}
                                             >
@@ -161,8 +175,6 @@ export default function TransactionsPage() {
                                             </TableCell>
                                         );
                                     })}
-
-                                    {/* 회원별 연간 합계 */}
                                     <TableCell className="text-right font-semibold">
                                         {formatCurrency(getMemberTotal(member.id))}
                                     </TableCell>
@@ -170,7 +182,7 @@ export default function TransactionsPage() {
                             ))}
                         </TableBody>
 
-                        {/* 열 합계 행 */}
+                        {/* 월별 합계 행 */}
                         <TableFooter>
                             <TableRow>
                                 <TableCell className="sticky left-0 bg-muted font-bold">

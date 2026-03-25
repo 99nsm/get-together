@@ -78,7 +78,7 @@ function mapMember(page: PageObjectResponse): Member {
 
 // 전체 회원 목록 조회
 export async function getMembers(): Promise<Member[]> {
-    const res = await notion.databases.query({ database_id: DB_IDS.members });
+    const res = await notion.dataSources.query({ data_source_id: DB_IDS.members });
     return res.results
         .filter((p): p is PageObjectResponse => "properties" in p)
         .map(mapMember);
@@ -96,9 +96,10 @@ export async function getMemberById(id: string): Promise<Member | null> {
 
 // 이름으로 회원 찾기 (로그인 시 사용)
 export async function getMemberByName(name: string): Promise<Member | null> {
-    const res = await notion.databases.query({
-        database_id: DB_IDS.members,
-        filter: { property: "name", title: { equals: name } },
+    const res = await notion.dataSources.query({
+        data_source_id: DB_IDS.members,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        filter: { property: "name", title: { equals: name } } as any,
     });
     const page = res.results[0];
     if (!page || !("properties" in page)) return null;
@@ -145,7 +146,8 @@ export async function updateMember(id: string, data: Partial<{
     if (data.isAdmin  !== undefined) properties.isAdmin  = { checkbox: data.isAdmin };
     if (data.passwordHash) properties.passwordHash = { rich_text: [{ text: { content: data.passwordHash } }] };
 
-    const page = await notion.pages.update({ page_id: id, properties });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const page = await notion.pages.update({ page_id: id, properties: properties as any });
     return mapMember(page as PageObjectResponse);
 }
 
@@ -182,11 +184,10 @@ export async function getTransactions(year?: number, month?: number): Promise<Tr
     if (year)  filters.push({ property: "year",  number: { equals: year } });
     if (month) filters.push({ property: "month", number: { equals: month } });
 
-    const res = await notion.databases.query({
-        database_id: DB_IDS.transactions,
-        filter: filters.length > 0
-            ? { and: filters as [object, ...object[]] }
-            : undefined,
+    const res = await notion.dataSources.query({
+        data_source_id: DB_IDS.transactions,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        filter: filters.length > 0 ? { and: filters as any } : undefined,
         sorts: [{ property: "paidAt", direction: "descending" }],
     });
     return res.results
@@ -227,7 +228,8 @@ export async function updateTransaction(id: string, data: Partial<{
     if (data.amount !== undefined) properties.amount = { number: data.amount };
     if (data.paidAt)               properties.paidAt = { date: { start: data.paidAt } };
 
-    const page = await notion.pages.update({ page_id: id, properties });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const page = await notion.pages.update({ page_id: id, properties: properties as any });
     return mapTransaction(page as PageObjectResponse);
 }
 
@@ -254,11 +256,10 @@ function mapExpense(page: PageObjectResponse): Expense {
 
 // 지출 목록 조회 (카테고리 필터 선택)
 export async function getExpenses(category?: string): Promise<Expense[]> {
-    const res = await notion.databases.query({
-        database_id: DB_IDS.expenses,
-        filter: category
-            ? { property: "category", select: { equals: category } }
-            : undefined,
+    const res = await notion.dataSources.query({
+        data_source_id: DB_IDS.expenses,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        filter: category ? { property: "category", select: { equals: category } } as any : undefined,
         sorts: [{ property: "usedAt", direction: "descending" }],
     });
     return res.results
@@ -302,7 +303,8 @@ export async function updateExpense(id: string, data: Partial<{
     if (data.usedAt)          properties.usedAt      = { date: { start: data.usedAt } };
     if (data.description !== undefined) properties.description = { rich_text: [{ text: { content: data.description } }] };
 
-    const page = await notion.pages.update({ page_id: id, properties });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const page = await notion.pages.update({ page_id: id, properties: properties as any });
     return mapExpense(page as PageObjectResponse);
 }
 
@@ -330,8 +332,8 @@ function mapPost(page: PageObjectResponse): Post {
 
 // 게시글 목록 조회 (페이지네이션: 한 번에 최대 20개)
 export async function getPosts(cursor?: string): Promise<{ posts: Post[]; nextCursor: string | null }> {
-    const res = await notion.databases.query({
-        database_id: DB_IDS.posts,
+    const res = await notion.dataSources.query({
+        data_source_id: DB_IDS.posts,
         start_cursor: cursor,
         page_size: 20,
         sorts: [
@@ -390,7 +392,8 @@ export async function updatePost(id: string, data: Partial<{
     if (data.content !== undefined) properties.content = { rich_text: [{ text: { content: data.content } }] };
     if (data.isPinned !== undefined) properties.isPinned = { checkbox: data.isPinned };
 
-    const page = await notion.pages.update({ page_id: id, properties });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const page = await notion.pages.update({ page_id: id, properties: properties as any });
     return mapPost(page as PageObjectResponse);
 }
 

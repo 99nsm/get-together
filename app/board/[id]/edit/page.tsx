@@ -1,41 +1,51 @@
 // app/board/[id]/edit/page.tsx
 // 게시글 수정 페이지 (/board/[id]/edit)
-// 기존 게시글 내용을 폼에 미리 채워서 수정할 수 있게 해줍니다.
-// Phase 1: 제출 시 Mock 처리 (실제 저장은 Phase 5에서 구현)
+// 마운트 시 GET /api/posts/[id]로 기존 데이터를 불러온 뒤,
+// 폼 제출 시 PUT /api/posts/[id]로 수정 내용을 저장합니다.
 
 "use client";
 
 import { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ArrowLeft, ImagePlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { mockPosts } from "@/lib/mock-data";
 
 export default function BoardEditPage() {
     const { id } = useParams<{ id: string }>();
     const router = useRouter();
 
-    // Mock 데이터에서 게시글 조회
-    const post = mockPosts.find((p) => p.id === id);
+    // 로딩/저장 상태
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
 
-    // 폼 상태: 기존 게시글 내용으로 초기화
-    const [title, setTitle] = useState(post?.title ?? "");
-    const [content, setContent] = useState(post?.content ?? "");
-    const [previewUrls, setPreviewUrls] = useState<string[]>(post?.photos ?? []);
+    // 폼 입력값 상태 (API 응답으로 초기화)
+    const [title, setTitle] = useState("");
+    const [content, setContent] = useState("");
+    const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // 게시글이 없으면 404 처리 (useEffect에서 처리)
+    // 페이지 마운트 시 기존 게시글 데이터 조회
     useEffect(() => {
-        if (!post) notFound();
-    }, [post]);
-
-    if (!post) return null;
+        fetch(`/api/posts/${id}`)
+            .then((r) => r.json())
+            .then((post) => {
+                if (!post || post.error) {
+                    // 게시글이 없으면 목록으로 이동
+                    router.push("/board");
+                    return;
+                }
+                setTitle(post.title);
+                setContent(post.content);
+                setPreviewUrls(post.photos ?? []);
+                setLoading(false);
+            })
+            .catch(() => router.push("/board"));
+    }, [id, router]);
 
     // 새 파일 선택 시 미리보기 추가
     function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -49,8 +59,8 @@ export default function BoardEditPage() {
         setPreviewUrls((prev) => prev.filter((_, i) => i !== index));
     }
 
-    // 폼 제출 (Phase 1: Mock 처리)
-    function handleSubmit(e: React.FormEvent) {
+    // 폼 제출 → PUT /api/posts/[id] 호출
+    async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (!title.trim()) {
             alert("제목을 입력해주세요.");
@@ -60,9 +70,33 @@ export default function BoardEditPage() {
             alert("내용을 입력해주세요.");
             return;
         }
-        // Phase 5에서 실제 PUT /api/posts/[id] 호출로 교체
-        alert("게시글이 수정되었습니다! (Phase 1: Mock 처리)");
+
+        setSaving(true);
+        const res = await fetch(`/api/posts/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, content }),
+        });
+        setSaving(false);
+
+        if (!res.ok) {
+            const data = await res.json();
+            alert(data.error ?? "게시글 수정에 실패했습니다.");
+            return;
+        }
+
+        // 수정 성공 → 게시글 상세 페이지로 이동
         router.push(`/board/${id}`);
+        router.refresh();
+    }
+
+    // 게시글 로딩 중 표시
+    if (loading) {
+        return (
+            <div className="text-center py-16 text-muted-foreground">
+                불러오는 중...
+            </div>
+        );
     }
 
     return (
@@ -77,7 +111,7 @@ export default function BoardEditPage() {
 
             <h1 className="text-2xl font-bold">게시글 수정</h1>
 
-            {/* ── 수정 폼 (기존 내용이 미리 채워져 있음) ── */}
+            {/* ── 수정 폼 ── */}
             <form onSubmit={handleSubmit} className="space-y-5">
                 {/* 제목 */}
                 <div className="space-y-1.5">
@@ -151,7 +185,9 @@ export default function BoardEditPage() {
                     <Button type="button" variant="outline" onClick={() => router.back()}>
                         취소
                     </Button>
-                    <Button type="submit">저장</Button>
+                    <Button type="submit" disabled={saving}>
+                        {saving ? "저장 중..." : "저장"}
+                    </Button>
                 </div>
             </form>
         </div>

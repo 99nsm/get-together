@@ -1,11 +1,10 @@
 // app/board/write/page.tsx
 // 게시글 작성 페이지 (/board/write)
-// 제목, 내용, 사진 첨부 폼을 제공합니다.
-// Phase 1: "use client"로 폼 상태 관리, 제출 시 Mock 처리(alert)
+// 제목, 내용 폼을 제공하고 POST /api/posts로 게시글을 저장합니다.
 
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ImagePlus, X } from "lucide-react";
@@ -13,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useRef } from "react";
 
 export default function BoardWritePage() {
     const router = useRouter();
@@ -20,6 +20,7 @@ export default function BoardWritePage() {
     // 폼 입력값 상태
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
+    const [saving, setSaving] = useState(false);
     // 미리보기용 이미지 URL 목록 (File → ObjectURL 변환)
     const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
@@ -37,8 +38,8 @@ export default function BoardWritePage() {
         setPreviewUrls((prev) => prev.filter((_, i) => i !== index));
     }
 
-    // 폼 제출 (Phase 1: Mock 처리)
-    function handleSubmit(e: React.FormEvent) {
+    // 폼 제출 → POST /api/posts 호출
+    async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (!title.trim()) {
             alert("제목을 입력해주세요.");
@@ -48,9 +49,24 @@ export default function BoardWritePage() {
             alert("내용을 입력해주세요.");
             return;
         }
-        // Phase 5에서 실제 API 호출로 교체
-        alert("게시글이 작성되었습니다! (Phase 1: Mock 처리)");
+
+        setSaving(true);
+        const res = await fetch("/api/posts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, content }),
+        });
+        setSaving(false);
+
+        if (!res.ok) {
+            const data = await res.json();
+            alert(data.error ?? "게시글 작성에 실패했습니다.");
+            return;
+        }
+
+        // 작성 성공 → 게시판 목록으로 이동
         router.push("/board");
+        router.refresh();
     }
 
     return (
@@ -92,10 +108,9 @@ export default function BoardWritePage() {
                     />
                 </div>
 
-                {/* 사진 첨부 */}
+                {/* 사진 첨부 (미리보기만 — 현재 Notion API에서 파일 업로드 미지원) */}
                 <div className="space-y-2">
                     <Label>사진 첨부</Label>
-                    {/* 숨겨진 파일 input (여러 장 선택 가능) */}
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -125,7 +140,6 @@ export default function BoardWritePage() {
                                         alt={`미리보기 ${idx + 1}`}
                                         className="w-full aspect-square object-cover rounded-md bg-muted"
                                     />
-                                    {/* 삭제 버튼 */}
                                     <button
                                         type="button"
                                         onClick={() => removePreview(idx)}
@@ -144,7 +158,9 @@ export default function BoardWritePage() {
                     <Button type="button" variant="outline" onClick={() => router.back()}>
                         취소
                     </Button>
-                    <Button type="submit">등록</Button>
+                    <Button type="submit" disabled={saving}>
+                        {saving ? "등록 중..." : "등록"}
+                    </Button>
                 </div>
             </form>
         </div>
