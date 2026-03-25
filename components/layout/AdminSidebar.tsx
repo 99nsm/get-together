@@ -5,7 +5,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, FileText, CreditCard, LayoutDashboard } from "lucide-react";
+import { Users, FileText, CreditCard, LayoutDashboard, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // 관리자 사이드바 메뉴 항목
@@ -24,6 +24,11 @@ const adminNavItems = [
         href: "/admin/transactions",
         label: "입금 내역 관리",
         icon: CreditCard,
+    },
+    {
+        href: "/admin/expenses",
+        label: "비용 관리",
+        icon: Receipt,
     },
 ];
 
