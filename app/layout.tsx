@@ -5,6 +5,7 @@
 import type { Metadata } from "next";
 import "@/app/globals.css";
 import Header from "@/components/layout/Header";
+import Providers from "@/components/layout/Providers";
 
 // 브라우저 탭에 표시되는 사이트 정보
 export const metadata: Metadata = {
@@ -21,12 +22,13 @@ export default function RootLayout({
         // lang="ko": 스크린리더 등 접근성 도구에 한국어임을 알립니다
         <html lang="ko" suppressHydrationWarning>
             <body>
-                {/* 모든 페이지 상단에 네비게이션 바 표시 */}
-                <Header />
-                {/* 각 페이지의 내용이 여기에 렌더링됩니다 */}
-                <main className="mx-auto max-w-screen-lg px-4 py-6">
-                    {children}
-                </main>
+                {/* Providers: useSession 등 클라이언트 훅이 동작하도록 감쌉니다 */}
+                <Providers>
+                    <Header />
+                    <main className="mx-auto max-w-screen-lg px-4 py-6">
+                        {children}
+                    </main>
+                </Providers>
             </body>
         </html>
     );
