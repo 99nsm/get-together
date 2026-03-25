@@ -26,14 +26,15 @@ export default async function HomePage() {
     // 활성 회원만 필터링 (탈퇴 회원 제외)
     const activeMembers = members.filter((m) => m.isActive);
 
-    // 이번 달 입금한 회원 ID 목록 (Set으로 빠른 조회)
-    const paidMemberIds = new Set(
+    // 이번 달 입금한 회원 이름 목록 (Set으로 빠른 조회)
+    // memberName(텍스트 필드)으로 비교 — ID 형식 차이 문제를 피하기 위해 이름 사용
+    const paidMemberNames = new Set(
         transactions
             .filter((tx) => tx.month === CURRENT_MONTH)
-            .map((tx) => tx.memberId)
+            .map((tx) => tx.memberName)
     );
 
-    const unpaidCount = activeMembers.filter((m) => !paidMemberIds.has(m.id)).length;
+    const unpaidCount = activeMembers.filter((m) => !paidMemberNames.has(m.name)).length;
     const paidCount = activeMembers.length - unpaidCount;
 
     // 납입률 (0~100 정수)
@@ -45,13 +46,19 @@ export default async function HomePage() {
     // 전체 누적 입금액 합산
     const totalAmount = transactions.reduce((sum, tx) => sum + tx.amount, 0);
 
-    // 회원별 총 납입액 + 이달 납입 여부 계산
+    // 회원별 총 납입액 + 이달 납입 여부 + 마지막 입금 월 계산
     const memberStats = activeMembers.map((member) => {
-        const memberTotal = transactions
-            .filter((tx) => tx.memberId === member.id)
-            .reduce((sum, tx) => sum + tx.amount, 0);
-        const isPaidThisMonth = paidMemberIds.has(member.id);
-        return { ...member, memberTotal, isPaidThisMonth };
+        const memberTxs = transactions.filter((tx) => tx.memberName === member.name);
+        const memberTotal = memberTxs.reduce((sum, tx) => sum + tx.amount, 0);
+        const isPaidThisMonth = paidMemberNames.has(member.name);
+
+        // 가장 최근 입금 연/월 (year * 100 + month 로 비교)
+        const lastTx = memberTxs.reduce<{ year: number; month: number } | null>((latest, tx) => {
+            if (!latest) return tx;
+            return tx.year * 100 + tx.month > latest.year * 100 + latest.month ? tx : latest;
+        }, null);
+
+        return { ...member, memberTotal, isPaidThisMonth, lastTx };
     });
 
     return (
@@ -115,9 +122,9 @@ export default async function HomePage() {
                                 key={member.id}
                                 name={member.name}
                                 joinDate={member.joinDate}
-                                isAdmin={member.isAdmin}
                                 memberTotal={member.memberTotal}
                                 isPaidThisMonth={member.isPaidThisMonth}
+                                lastTx={member.lastTx}
                             />
                         ))}
                     </div>
@@ -133,15 +140,15 @@ export default async function HomePage() {
 function MemberCard({
     name,
     joinDate,
-    isAdmin,
     memberTotal,
     isPaidThisMonth,
+    lastTx,
 }: {
     name: string;
     joinDate: string;
-    isAdmin: boolean;
     memberTotal: number;
     isPaidThisMonth: boolean;
+    lastTx: { year: number; month: number } | null;
 }) {
     return (
         <Card className={isPaidThisMonth ? "" : "border-destructive/50 bg-destructive/5"}>
@@ -150,14 +157,12 @@ function MemberCard({
                     <div>
                         <div className="flex items-center gap-1.5">
                             <p className="font-semibold">{name}</p>
-                            {isAdmin && (
-                                <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                                    관리자
-                                </Badge>
-                            )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                             가입일: {formatDate(joinDate)}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            마지막 입금: {lastTx ? `${lastTx.year}년 ${lastTx.month}월` : "없음"}
                         </p>
                     </div>
                     {isPaidThisMonth ? (

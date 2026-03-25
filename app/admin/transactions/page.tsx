@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, ListPlus, Pencil, Trash2 } from "lucide-react";
 import type { Transaction, Member } from "@/lib/types";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,7 +45,6 @@ const emptyForm = {
     year: String(currentYear),
     month: "",
     amount: "",
-    paidAt: "",
 };
 
 // 일괄 등록 폼 초기값
@@ -110,13 +109,7 @@ export default function AdminTransactionsPage() {
     }
 
     function openEdit(tx: Transaction) {
-        setForm({
-            memberId: tx.memberId,
-            year: String(tx.year),
-            month: String(tx.month),
-            amount: String(tx.amount),
-            paidAt: tx.paidAt,
-        });
+        setForm({ ...emptyForm, year: String(tx.year), month: String(tx.month), amount: String(tx.amount) });
         setEditingTx(tx);
     }
 
@@ -134,7 +127,6 @@ export default function AdminTransactionsPage() {
                 year: Number(form.year),
                 month: Number(form.month),
                 amount: Number(form.amount),
-                paidAt: form.paidAt,
             }),
         });
         if (!res.ok) {
@@ -152,8 +144,9 @@ export default function AdminTransactionsPage() {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+                year:   Number(form.year),
+                month:  Number(form.month),
                 amount: Number(form.amount),
-                paidAt: form.paidAt,
             }),
         });
         if (!res.ok) {
@@ -177,22 +170,21 @@ export default function AdminTransactionsPage() {
 
     // 일괄 등록: POST /api/transactions/bulk
     async function handleBulkAdd() {
-        const entries = bulkForm.selectedMemberIds.map((memberId) => {
-            const member = activeMembers.find((m) => m.id === memberId);
-            return {
-                memberId,
-                memberName: member?.name ?? "",
-                year: Number(bulkForm.year),
-                month: Number(bulkForm.month),
-                amount: Number(bulkForm.amount),
-                paidAt: new Date().toISOString().split("T")[0],
-            };
-        });
-
         const res = await fetch("/api/transactions/bulk", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ entries }),
+            body: JSON.stringify({
+                year: Number(bulkForm.year),
+                month: Number(bulkForm.month),
+                entries: bulkForm.selectedMemberIds.map((memberId) => {
+                    const member = activeMembers.find((m) => m.id === memberId);
+                    return {
+                        memberId,
+                        memberName: member?.name ?? "",
+                        amount: Number(bulkForm.amount),
+                    };
+                }),
+            }),
         });
         if (!res.ok) {
             alert("일괄 등록에 실패했습니다.");
@@ -214,7 +206,8 @@ export default function AdminTransactionsPage() {
     }
 
     const deleteTarget = transactions.find((tx) => tx.id === deleteTargetId);
-    const isFormValid = form.memberId && form.year && form.month && form.amount && form.paidAt;
+    const isFormValid = form.memberId && form.year && form.month && form.amount;
+    const isEditFormValid = !!form.year && !!form.month && !!form.amount && Number(form.amount) > 0;
 
     return (
         <div className="space-y-6">
@@ -286,14 +279,13 @@ export default function AdminTransactionsPage() {
                                 <TableHead>연도</TableHead>
                                 <TableHead>월</TableHead>
                                 <TableHead>금액</TableHead>
-                                <TableHead>납입일</TableHead>
                                 <TableHead className="text-right">액션</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {transactions.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                                    <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
                                         {selectedYear}년 입금 내역이 없습니다.
                                     </TableCell>
                                 </TableRow>
@@ -304,7 +296,6 @@ export default function AdminTransactionsPage() {
                                         <TableCell>{tx.year}년</TableCell>
                                         <TableCell>{tx.month}월</TableCell>
                                         <TableCell>{formatCurrency(tx.amount)}</TableCell>
-                                        <TableCell>{formatDate(tx.paidAt)}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">
                                                 <Button
@@ -354,12 +345,49 @@ export default function AdminTransactionsPage() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>입금 내역 수정</DialogTitle>
-                        <DialogDescription>입금 내역을 수정하세요.</DialogDescription>
+                        <DialogDescription>{editingTx?.memberName}의 입금 내역을 수정하세요.</DialogDescription>
                     </DialogHeader>
-                    <TransactionForm form={form} setForm={setForm} activeMembers={activeMembers} />
+                    <div className="grid gap-4 py-2">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="grid gap-1.5">
+                                <Label>연도 *</Label>
+                                <Input
+                                    type="number"
+                                    value={form.year}
+                                    onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))}
+                                    placeholder="2026"
+                                />
+                            </div>
+                            <div className="grid gap-1.5">
+                                <Label>월 *</Label>
+                                <Select
+                                    value={form.month}
+                                    onValueChange={(v) => setForm((f) => ({ ...f, month: v }))}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="월" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                                            <SelectItem key={m} value={String(m)}>{m}월</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="grid gap-1.5">
+                            <Label>금액 (원) *</Label>
+                            <Input
+                                type="number"
+                                value={form.amount}
+                                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                                placeholder="50000"
+                            />
+                        </div>
+                    </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setEditingTx(null)}>취소</Button>
-                        <Button onClick={handleEdit} disabled={!isFormValid}>저장</Button>
+                        <Button onClick={handleEdit} disabled={!isEditFormValid}>저장</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -548,14 +576,6 @@ function TransactionForm({ form, setForm, activeMembers }: TransactionFormProps)
                     value={form.amount}
                     onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
                     placeholder="50000"
-                />
-            </div>
-            <div className="grid gap-1.5">
-                <Label>납입일 *</Label>
-                <Input
-                    type="date"
-                    value={form.paidAt}
-                    onChange={(e) => setForm((f) => ({ ...f, paidAt: e.target.value }))}
                 />
             </div>
         </div>

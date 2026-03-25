@@ -17,9 +17,9 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json();
-        const { year, month, paidAt, entries } = body;
+        const { year, month, entries } = body;
 
-        if (!year || !month || !paidAt || !Array.isArray(entries) || entries.length === 0) {
+        if (!year || !month || !Array.isArray(entries) || entries.length === 0) {
             return NextResponse.json({ error: "필수 항목이 누락되었습니다." }, { status: 400 });
         }
 
@@ -32,7 +32,6 @@ export async function POST(req: Request) {
                     year,
                     month,
                     amount:     entry.amount,
-                    paidAt,
                 })
             )
         );

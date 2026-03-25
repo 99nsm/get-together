@@ -32,13 +32,13 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json();
-        const { memberId, memberName, year, month, amount, paidAt } = body;
+        const { memberId, memberName, year, month, amount } = body;
 
-        if (!memberId || !memberName || !year || !month || !amount || !paidAt) {
+        if (!memberId || !memberName || !year || !month || !amount) {
             return NextResponse.json({ error: "필수 항목이 누락되었습니다." }, { status: 400 });
         }
 
-        const transaction = await createTransaction({ memberId, memberName, year, month, amount, paidAt });
+        const transaction = await createTransaction({ memberId, memberName, year, month, amount });
         return NextResponse.json(transaction, { status: 201 });
     } catch (error) {
         console.error("[POST /api/transactions]", error);

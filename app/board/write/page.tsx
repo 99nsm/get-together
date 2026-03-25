@@ -23,19 +23,23 @@ export default function BoardWritePage() {
     const [saving, setSaving] = useState(false);
     // 미리보기용 이미지 URL 목록 (File → ObjectURL 변환)
     const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+    // 실제 파일 객체 목록 (서버로 전송용)
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // 파일 선택 시 미리보기 URL 생성
+    // 파일 선택 시 미리보기 URL 생성 + 파일 객체 저장
     function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
         const files = Array.from(e.target.files ?? []);
         const urls = files.map((file) => URL.createObjectURL(file));
         setPreviewUrls((prev) => [...prev, ...urls]);
+        setSelectedFiles((prev) => [...prev, ...files]);
     }
 
-    // 미리보기 이미지 제거
+    // 미리보기 이미지 제거 (파일 객체도 함께 제거)
     function removePreview(index: number) {
         setPreviewUrls((prev) => prev.filter((_, i) => i !== index));
+        setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
     }
 
     // 폼 제출 → POST /api/posts 호출
@@ -51,10 +55,15 @@ export default function BoardWritePage() {
         }
 
         setSaving(true);
+        // 이미지 파일을 포함하기 위해 FormData로 전송
+        const formData = new FormData();
+        formData.append("title", title);
+        formData.append("content", content);
+        selectedFiles.forEach((file) => formData.append("photos", file));
+
         const res = await fetch("/api/posts", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title, content }),
+            body: formData, // Content-Type 헤더는 브라우저가 자동으로 설정
         });
         setSaving(false);
 

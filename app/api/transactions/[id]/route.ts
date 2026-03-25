@@ -17,8 +17,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         const { id } = await params;
         const body = await req.json();
         const transaction = await updateTransaction(id, {
+            year:   body.year,
+            month:  body.month,
             amount: body.amount,
-            paidAt: body.paidAt,
         });
         return NextResponse.json(transaction);
     } catch (error) {

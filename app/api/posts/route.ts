@@ -5,6 +5,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getPosts, createPost } from "@/lib/notion-api";
+import { writeFile, mkdir } from "fs/promises";
+import path from "path";
 
 // GET /api/posts?cursor=xxx — 게시글 목록 조회 (페이지네이션)
 export async function GET(req: Request) {
@@ -28,11 +30,29 @@ export async function POST(req: Request) {
     }
 
     try {
-        const body = await req.json();
-        const { title, content } = body;
+        // FormData로 전송된 데이터 파싱
+        const formData = await req.formData();
+        const title   = formData.get("title") as string;
+        const content = formData.get("content") as string;
+        const files   = formData.getAll("photos") as File[];
 
         if (!title || !content) {
             return NextResponse.json({ error: "제목과 내용을 입력해주세요." }, { status: 400 });
+        }
+
+        // 이미지 파일을 public/uploads 폴더에 저장하고 URL 목록 생성
+        const photoUrls: string[] = [];
+        const uploadDir = path.join(process.cwd(), "public", "uploads");
+        await mkdir(uploadDir, { recursive: true }); // 폴더가 없으면 자동 생성
+
+        for (const file of files) {
+            if (!file || file.size === 0) continue;
+            const bytes = await file.arrayBuffer();
+            const buffer = Buffer.from(bytes);
+            const ext      = file.name.split(".").pop() ?? "jpg";
+            const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+            await writeFile(path.join(uploadDir, filename), buffer);
+            photoUrls.push(`/uploads/${filename}`);
         }
 
         const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
@@ -43,6 +63,7 @@ export async function POST(req: Request) {
             authorId:   session.user.id ?? "",
             authorName: session.user.name ?? "",
             createdAt:  today,
+            photos:     photoUrls,
         });
 
         return NextResponse.json(post, { status: 201 });
