@@ -61,6 +61,9 @@ export default function AdminExpensesPage() {
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
+    // API 요청 중 버튼 중복 클릭 방지용 상태
+    const [saving, setSaving] = useState(false);
+
     // 폼 상태
     const [form, setForm] = useState(emptyForm);
 
@@ -99,6 +102,7 @@ export default function AdminExpensesPage() {
 
     // 지출 등록: POST /api/expenses
     async function handleAdd() {
+        setSaving(true);
         const res = await fetch("/api/expenses", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -110,6 +114,7 @@ export default function AdminExpensesPage() {
                 description: form.description,
             }),
         });
+        setSaving(false);
         if (!res.ok) {
             alert("등록에 실패했습니다.");
             return;
@@ -121,6 +126,7 @@ export default function AdminExpensesPage() {
     // 지출 수정: PUT /api/expenses/[id]
     async function handleEdit() {
         if (!editingExpense) return;
+        setSaving(true);
         const res = await fetch(`/api/expenses/${editingExpense.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -132,6 +138,7 @@ export default function AdminExpensesPage() {
                 description: form.description,
             }),
         });
+        setSaving(false);
         if (!res.ok) {
             alert("수정에 실패했습니다.");
             return;
@@ -142,7 +149,9 @@ export default function AdminExpensesPage() {
 
     // 지출 삭제: DELETE /api/expenses/[id]
     async function handleDelete() {
+        setSaving(true);
         const res = await fetch(`/api/expenses/${deleteTargetId}`, { method: "DELETE" });
+        setSaving(false);
         if (!res.ok) {
             alert("삭제에 실패했습니다.");
             return;
@@ -191,7 +200,7 @@ export default function AdminExpensesPage() {
             {loading ? (
                 <p className="text-center py-16 text-muted-foreground">불러오는 중...</p>
             ) : (
-                <div className="rounded-md border">
+                <div className="rounded-md border overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -255,8 +264,10 @@ export default function AdminExpensesPage() {
                     </DialogHeader>
                     <ExpenseForm form={form} setForm={setForm} />
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsAddOpen(false)}>취소</Button>
-                        <Button onClick={handleAdd} disabled={!isFormValid}>등록</Button>
+                        <Button variant="outline" onClick={() => setIsAddOpen(false)} disabled={saving}>취소</Button>
+                        <Button onClick={handleAdd} disabled={!isFormValid || saving}>
+                            {saving ? "등록 중..." : "등록"}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -273,8 +284,10 @@ export default function AdminExpensesPage() {
                     </DialogHeader>
                     <ExpenseForm form={form} setForm={setForm} />
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setEditingExpense(null)}>취소</Button>
-                        <Button onClick={handleEdit} disabled={!isFormValid}>저장</Button>
+                        <Button variant="outline" onClick={() => setEditingExpense(null)} disabled={saving}>취소</Button>
+                        <Button onClick={handleEdit} disabled={!isFormValid || saving}>
+                            {saving ? "저장 중..." : "저장"}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -293,8 +306,10 @@ export default function AdminExpensesPage() {
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteTargetId(null)}>취소</Button>
-                        <Button variant="destructive" onClick={handleDelete}>삭제</Button>
+                        <Button variant="outline" onClick={() => setDeleteTargetId(null)} disabled={saving}>취소</Button>
+                        <Button variant="destructive" onClick={handleDelete} disabled={saving}>
+                            {saving ? "삭제 중..." : "삭제"}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

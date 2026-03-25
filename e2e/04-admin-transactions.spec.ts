@@ -11,7 +11,7 @@ test.describe("관리자 - 입금 내역 관리", () => {
     test.beforeEach(async ({ page }) => {
         await loginAsAdmin(page);
         await page.goto("/admin/transactions");
-        await expect(page.getByText("불러오는 중...")).not.toBeVisible({ timeout: 10000 });
+        await expect(page.getByText("불러오는 중...")).toHaveCount(0, { timeout: 10000 });
     });
 
     test("페이지 제목이 표시된다", async ({ page }) => {

@@ -11,7 +11,7 @@ test.describe("관리자 - 비용 관리", () => {
     test.beforeEach(async ({ page }) => {
         await loginAsAdmin(page);
         await page.goto("/admin/expenses");
-        await expect(page.getByText("불러오는 중...")).not.toBeVisible({ timeout: 10000 });
+        await expect(page.getByText("불러오는 중...")).toHaveCount(0, { timeout: 10000 });
     });
 
     test("페이지 제목이 표시된다", async ({ page }) => {
@@ -61,10 +61,11 @@ test.describe("관리자 - 비용 관리", () => {
         await page.getByPlaceholder("50000").fill("9999");
 
         await page.getByRole("button", { name: "등록" }).click();
-        await expect(page.getByRole("dialog")).not.toBeVisible();
+        // Notion API 응답이 느릴 수 있어 15초 대기
+        await expect(page.getByRole("dialog")).not.toBeVisible({ timeout: 15000 });
 
         // 등록된 항목이 테이블에 표시되는지 확인
-        await expect(page.getByRole("cell", { name: testTitle, exact: true })).toBeVisible({ timeout: 10000 });
+        await expect(page.getByRole("cell", { name: testTitle, exact: true })).toBeVisible({ timeout: 15000 });
 
         // ── 2. 수정 ──
         const targetRow = page.getByRole("row", { name: new RegExp(testTitle) });
@@ -78,10 +79,11 @@ test.describe("관리자 - 비용 관리", () => {
         await page.getByPlaceholder("예: 3월 회식").fill(editedTitle);
 
         await page.getByRole("button", { name: "저장" }).click();
-        await expect(page.getByRole("dialog")).not.toBeVisible();
+        // Notion API 응답이 느릴 수 있어 15초 대기
+        await expect(page.getByRole("dialog")).not.toBeVisible({ timeout: 15000 });
 
         // 수정된 이름이 테이블에 표시되는지 확인
-        await expect(page.getByRole("cell", { name: editedTitle, exact: true })).toBeVisible({ timeout: 10000 });
+        await expect(page.getByRole("cell", { name: editedTitle, exact: true })).toBeVisible({ timeout: 15000 });
 
         // ── 3. 삭제 ──
         const updatedRow = page.getByRole("row", { name: new RegExp(editedTitle) });
@@ -94,10 +96,11 @@ test.describe("관리자 - 비용 관리", () => {
 
         // 삭제 확정
         await page.getByRole("button", { name: "삭제" }).click();
-        await expect(page.getByRole("dialog")).not.toBeVisible();
+        // Notion API 응답이 느릴 수 있어 15초 대기
+        await expect(page.getByRole("dialog")).not.toBeVisible({ timeout: 15000 });
 
         // 삭제 후 테이블에서 사라졌는지 확인
-        await expect(page.getByRole("cell", { name: editedTitle, exact: true })).not.toBeVisible({ timeout: 10000 });
+        await expect(page.getByRole("cell", { name: editedTitle, exact: true })).not.toBeVisible({ timeout: 15000 });
     });
 
     test("카테고리 필터로 목록이 바뀐다", async ({ page }) => {
@@ -106,7 +109,7 @@ test.describe("관리자 - 비용 관리", () => {
         await page.getByRole("option", { name: "식비" }).click();
 
         // 필터 적용 후 로딩 완료 대기
-        await expect(page.getByText("불러오는 중...")).not.toBeVisible({ timeout: 10000 });
+        await expect(page.getByText("불러오는 중...")).toHaveCount(0, { timeout: 10000 });
 
         // "전체" 텍스트가 "식비"로 바뀌었는지 확인
         await expect(page.getByText("식비 지출 내역")).toBeVisible();

@@ -13,7 +13,7 @@ test.describe("관리자 - 회원 관리", () => {
         await loginAsAdmin(page);
         await page.goto("/admin/members");
         // 테이블 로드 대기 (로딩 텍스트가 사라질 때까지)
-        await expect(page.getByText("불러오는 중...")).not.toBeVisible({ timeout: 10000 });
+        await expect(page.getByText("불러오는 중...")).toHaveCount(0, { timeout: 10000 });
     });
 
     test("페이지 제목이 표시된다", async ({ page }) => {
