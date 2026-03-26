@@ -48,9 +48,14 @@ export async function POST(req: Request) {
             if (!file || file.size === 0) continue;
             const ext      = file.name.split(".").pop() ?? "jpg";
             const filename = `posts/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-            // Vercel Blob에 파일 업로드 (access: "public"으로 누구나 볼 수 있게 설정)
-            const blob = await put(filename, file, { access: "public" });
-            photoUrls.push(blob.url);
+            try {
+                // Vercel Blob에 파일 업로드 (access: "public"으로 누구나 볼 수 있게 설정)
+                const blob = await put(filename, file, { access: "public" });
+                photoUrls.push(blob.url);
+            } catch (blobError) {
+                console.error("[POST /api/posts] Blob 업로드 실패:", blobError);
+                return NextResponse.json({ error: "이미지 업로드에 실패했습니다. 잠시 후 다시 시도해주세요." }, { status: 500 });
+            }
         }
 
         const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD

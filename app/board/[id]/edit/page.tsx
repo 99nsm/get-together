@@ -2,6 +2,7 @@
 // 게시글 수정 페이지 (/board/[id]/edit)
 // 마운트 시 GET /api/posts/[id]로 기존 데이터를 불러온 뒤,
 // 폼 제출 시 PUT /api/posts/[id]로 수정 내용을 저장합니다.
+// 기존 사진 삭제 / 새 사진 추가를 모두 지원합니다.
 
 "use client";
 
@@ -22,10 +23,15 @@ export default function BoardEditPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
-    // 폼 입력값 상태 (API 응답으로 초기화)
+    // 텍스트 필드
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
-    const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+
+    // 기존 사진 URL 목록 (서버에서 받아온 것, 삭제하면 이 목록에서 제거)
+    const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
+    // 새로 추가할 파일 목록 + 미리보기 URL
+    const [newFiles, setNewFiles] = useState<File[]>([]);
+    const [newPreviewUrls, setNewPreviewUrls] = useState<string[]>([]);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -35,47 +41,58 @@ export default function BoardEditPage() {
             .then((r) => r.json())
             .then((post) => {
                 if (!post || post.error) {
-                    // 게시글이 없으면 목록으로 이동
                     router.push("/board");
                     return;
                 }
                 setTitle(post.title);
                 setContent(post.content);
-                setPreviewUrls(post.photos ?? []);
+                setExistingPhotos(post.photos ?? []);
                 setLoading(false);
             })
             .catch(() => router.push("/board"));
     }, [id, router]);
 
-    // 새 파일 선택 시 미리보기 추가
+    // 기존 사진 삭제 (목록에서 제거, 서버엔 저장 시 반영)
+    function removeExisting(index: number) {
+        setExistingPhotos((prev) => prev.filter((_, i) => i !== index));
+    }
+
+    // 새 파일 선택
     function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
         const files = Array.from(e.target.files ?? []);
-        const urls = files.map((file) => URL.createObjectURL(file));
-        setPreviewUrls((prev) => [...prev, ...urls]);
+        const urls = files.map((f) => URL.createObjectURL(f));
+        setNewFiles((prev) => [...prev, ...files]);
+        setNewPreviewUrls((prev) => [...prev, ...urls]);
+        // input 초기화 (같은 파일 다시 선택 가능하도록)
+        e.target.value = "";
     }
 
-    // 미리보기 이미지 제거
-    function removePreview(index: number) {
-        setPreviewUrls((prev) => prev.filter((_, i) => i !== index));
+    // 새로 추가한 사진 제거
+    function removeNew(index: number) {
+        setNewFiles((prev) => prev.filter((_, i) => i !== index));
+        setNewPreviewUrls((prev) => prev.filter((_, i) => i !== index));
     }
 
-    // 폼 제출 → PUT /api/posts/[id] 호출
+    // 폼 제출 → PUT /api/posts/[id] 호출 (FormData)
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        if (!title.trim()) {
-            alert("제목을 입력해주세요.");
-            return;
-        }
-        if (!content.trim()) {
-            alert("내용을 입력해주세요.");
-            return;
-        }
+        if (!title.trim()) { alert("제목을 입력해주세요."); return; }
+        if (!content.trim()) { alert("내용을 입력해주세요."); return; }
 
         setSaving(true);
+
+        // FormData로 전송
+        // - keepPhotos: 유지할 기존 사진 URL들
+        // - newPhotos: 새로 업로드할 파일들
+        const formData = new FormData();
+        formData.append("title", title);
+        formData.append("content", content);
+        existingPhotos.forEach((url) => formData.append("keepPhotos", url));
+        newFiles.forEach((file) => formData.append("newPhotos", file));
+
         const res = await fetch(`/api/posts/${id}`, {
             method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title, content }),
+            body: formData,
         });
         setSaving(false);
 
@@ -90,14 +107,12 @@ export default function BoardEditPage() {
         router.refresh();
     }
 
-    // 게시글 로딩 중 표시
     if (loading) {
-        return (
-            <div className="text-center py-16 text-muted-foreground">
-                불러오는 중...
-            </div>
-        );
+        return <div className="text-center py-16 text-muted-foreground">불러오는 중...</div>;
     }
+
+    // 전체 사진 수 (기존 유지 + 새로 추가)
+    const totalPhotos = existingPhotos.length + newFiles.length;
 
     return (
         <div className="max-w-2xl mx-auto space-y-6">
@@ -111,7 +126,6 @@ export default function BoardEditPage() {
 
             <h1 className="text-2xl font-bold">게시글 수정</h1>
 
-            {/* ── 수정 폼 ── */}
             <form onSubmit={handleSubmit} className="space-y-5">
                 {/* 제목 */}
                 <div className="space-y-1.5">
@@ -136,9 +150,11 @@ export default function BoardEditPage() {
                     />
                 </div>
 
-                {/* 사진 첨부 */}
+                {/* 사진 관리 */}
                 <div className="space-y-2">
-                    <Label>사진 첨부</Label>
+                    <Label>사진 ({totalPhotos}장)</Label>
+
+                    {/* 숨겨진 파일 입력 */}
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -147,6 +163,8 @@ export default function BoardEditPage() {
                         className="hidden"
                         onChange={handleFileChange}
                     />
+
+                    {/* 사진 추가 버튼 */}
                     <Button
                         type="button"
                         variant="outline"
@@ -157,19 +175,40 @@ export default function BoardEditPage() {
                         사진 추가
                     </Button>
 
-                    {previewUrls.length > 0 && (
+                    {/* 사진 그리드: 기존 사진(파란 테두리) + 새 사진(초록 테두리) */}
+                    {totalPhotos > 0 && (
                         <div className="grid grid-cols-3 gap-2 mt-2">
-                            {previewUrls.map((url, idx) => (
-                                <div key={idx} className="relative group">
+                            {/* 기존 사진 — X 누르면 목록에서 제거 */}
+                            {existingPhotos.map((url, idx) => (
+                                <div key={`existing-${idx}`} className="relative group">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                         src={url}
-                                        alt={`미리보기 ${idx + 1}`}
-                                        className="w-full aspect-square object-cover rounded-md bg-muted"
+                                        alt={`기존 사진 ${idx + 1}`}
+                                        className="w-full aspect-square object-cover rounded-md bg-muted ring-2 ring-blue-300"
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => removePreview(idx)}
+                                        onClick={() => removeExisting(idx)}
+                                        className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </div>
+                            ))}
+
+                            {/* 새로 추가한 사진 — 초록 테두리로 구분 */}
+                            {newPreviewUrls.map((url, idx) => (
+                                <div key={`new-${idx}`} className="relative group">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                        src={url}
+                                        alt={`새 사진 ${idx + 1}`}
+                                        className="w-full aspect-square object-cover rounded-md bg-muted ring-2 ring-green-400"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => removeNew(idx)}
                                         className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                                     >
                                         <X className="h-3 w-3" />
@@ -178,9 +217,16 @@ export default function BoardEditPage() {
                             ))}
                         </div>
                     )}
+
+                    {/* 파란 테두리 = 기존 사진, 초록 테두리 = 새로 추가 안내 */}
+                    {totalPhotos > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                            파란 테두리: 기존 사진 &nbsp;|&nbsp; 초록 테두리: 새로 추가한 사진
+                        </p>
+                    )}
                 </div>
 
-                {/* 버튼 */}
+                {/* 저장 버튼 */}
                 <div className="flex gap-2 justify-end pt-2">
                     <Button type="button" variant="outline" onClick={() => router.back()}>
                         취소

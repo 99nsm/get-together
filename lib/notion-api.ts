@@ -395,11 +395,18 @@ export async function updatePost(id: string, data: Partial<{
     title: string;
     content: string;
     isPinned: boolean;
+    photos: string[]; // 최종 사진 URL 목록 (undefined면 변경 안 함)
 }>): Promise<Post> {
     const properties: Record<string, unknown> = {};
-    if (data.title)            properties.title    = { title: [{ text: { content: data.title } }] };
-    if (data.content !== undefined) properties.content = { rich_text: [{ text: { content: data.content } }] };
+    if (data.title)                  properties.title    = { title: [{ text: { content: data.title } }] };
+    if (data.content !== undefined)  properties.content  = { rich_text: [{ text: { content: data.content } }] };
     if (data.isPinned !== undefined) properties.isPinned = { checkbox: data.isPinned };
+    // photos가 전달되면 Notion files 속성 업데이트 (빈 배열이면 전체 삭제)
+    if (data.photos !== undefined) {
+        properties.photos = {
+            files: data.photos.map((url) => ({ name: url, external: { url } })),
+        };
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const page = await notion.pages.update({ page_id: id, properties: properties as any });
