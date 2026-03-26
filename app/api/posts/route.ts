@@ -1,12 +1,12 @@
 // app/api/posts/route.ts
 // 게시글 목록 조회(GET)와 게시글 작성(POST) API
 // GET: 모든 사용자, POST: 로그인 사용자만
+// 이미지 업로드는 Vercel Blob 클라우드 저장소를 사용합니다 (Vercel 파일시스템은 읽기 전용이라 직접 저장 불가)
 
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getPosts, createPost } from "@/lib/notion-api";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { put } from "@vercel/blob";
 
 // GET /api/posts?cursor=xxx — 게시글 목록 조회 (페이지네이션)
 export async function GET(req: Request) {
@@ -40,19 +40,17 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "제목과 내용을 입력해주세요." }, { status: 400 });
         }
 
-        // 이미지 파일을 public/uploads 폴더에 저장하고 URL 목록 생성
+        // 이미지 파일을 Vercel Blob 클라우드에 업로드하고 URL 목록 생성
+        // Vercel 서버는 파일시스템이 읽기 전용이라 로컬 저장 불가 → 클라우드 사용
         const photoUrls: string[] = [];
-        const uploadDir = path.join(process.cwd(), "public", "uploads");
-        await mkdir(uploadDir, { recursive: true }); // 폴더가 없으면 자동 생성
 
         for (const file of files) {
             if (!file || file.size === 0) continue;
-            const bytes = await file.arrayBuffer();
-            const buffer = Buffer.from(bytes);
             const ext      = file.name.split(".").pop() ?? "jpg";
-            const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-            await writeFile(path.join(uploadDir, filename), buffer);
-            photoUrls.push(`/uploads/${filename}`);
+            const filename = `posts/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+            // Vercel Blob에 파일 업로드 (access: "public"으로 누구나 볼 수 있게 설정)
+            const blob = await put(filename, file, { access: "public" });
+            photoUrls.push(blob.url);
         }
 
         const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
