@@ -15,6 +15,7 @@ import { getPost } from "@/lib/notion-api";
 import { auth } from "@/auth";
 import { formatDate } from "@/lib/utils";
 import PostActions from "./_components/PostActions";
+import PhotoCarousel from "./_components/PhotoCarousel";
 
 export default async function BoardDetailPage({
     params,
@@ -70,7 +71,12 @@ export default async function BoardDetailPage({
                 </div>
             </div>
 
-            <Separator />
+            {/* ── 본문 구분선: 양쪽에서 중앙으로 그라데이션 ── */}
+            <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gradient-to-r from-transparent to-border" />
+                <span className="text-xs text-muted-foreground/60 font-medium tracking-widest uppercase">내용</span>
+                <div className="flex-1 h-px bg-gradient-to-l from-transparent to-border" />
+            </div>
 
             {/* ── 본문 내용 ── */}
             {/* whitespace-pre-wrap: 줄바꿈(\n)을 그대로 렌더링 */}
@@ -87,17 +93,18 @@ export default async function BoardDetailPage({
                     <p className="text-sm font-medium text-muted-foreground">
                         첨부 사진 {post.photos.length}장
                     </p>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        {post.photos.map((url, idx) => (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                                key={idx}
-                                src={url}
-                                alt={`첨부사진 ${idx + 1}`}
-                                className="rounded-md object-cover w-full aspect-square bg-muted"
-                            />
-                        ))}
-                    </div>
+                    {post.photos.length === 1 ? (
+                        // 사진 1장: 전체 너비로 크게 표시
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                            src={post.photos[0]}
+                            alt="첨부사진"
+                            className="rounded-lg object-cover w-full max-h-[480px] bg-muted"
+                        />
+                    ) : (
+                        // 사진 여러 장: 마우스 드래그 + dots 슬라이드
+                        <PhotoCarousel photos={post.photos} />
+                    )}
                 </div>
             )}
         </div>

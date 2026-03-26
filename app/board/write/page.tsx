@@ -138,16 +138,16 @@ export default function BoardWritePage() {
                         사진 선택
                     </Button>
 
-                    {/* 미리보기 이미지 그리드 */}
+                    {/* 미리보기 이미지 그리드 — 1장: 전체너비 / 2장 이상: 2열 */}
                     {previewUrls.length > 0 && (
-                        <div className="grid grid-cols-3 gap-2 mt-2">
+                        <div className={`mt-2 ${previewUrls.length === 1 ? "flex flex-col gap-3" : "grid grid-cols-2 gap-3"}`}>
                             {previewUrls.map((url, idx) => (
                                 <div key={idx} className="relative group">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                         src={url}
                                         alt={`미리보기 ${idx + 1}`}
-                                        className="w-full aspect-square object-cover rounded-md bg-muted"
+                                        className={`w-full object-cover rounded-lg bg-muted ${previewUrls.length === 1 ? "max-h-[480px]" : "aspect-[4/3]"}`}
                                     />
                                     <button
                                         type="button"
